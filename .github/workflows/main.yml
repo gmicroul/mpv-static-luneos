@@ -23,30 +23,30 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \\
-          build-essential \\
-          libass-dev \\
-          libavcodec-dev \\
-          libavformat-dev \\
-          libavutil-dev \\
-          libcaca-dev \\
-          libfreetype6-dev \\
-          libjpeg-dev \\
-          libmp3lame-dev \\
-          libopencore-amrnb-dev \\
-          libopencore-amrwb-dev \\
-          libpng-dev \\
-          libspeex-dev \\
-          libtheora-dev \\
-          libva-dev \\
-          libvdpau-dev \\
-          libvorbis-dev \\
-          libxcb1-dev \\
-          libxcb-shm0-dev \\
-          libxcb-xfixes0-dev \\
-          pkg-config \\
-          yasm \\
-          zlib1g-dev \\
+        sudo apt-get install -y \
+          build-essential \
+          libass-dev \
+          libavcodec-dev \
+          libavformat-dev \
+          libavutil-dev \
+          libcaca-dev \
+          libfreetype6-dev \
+          libjpeg-dev \
+          libmp3lame-dev \
+          libopencore-amrnb-dev \
+          libopencore-amrwb-dev \
+          libpng-dev \
+          libspeex-dev \
+          libtheora-dev \
+          libva-dev \
+          libvdpau-dev \
+          libvorbis-dev \
+          libxcb1-dev \
+          libxcb-shm0-dev \
+          libxcb-xfixes0-dev \
+          pkg-config \
+          yasm \
+          zlib1g-dev \
           wget
 
     - name: Download and extract Linux 4.9 kernel headers
