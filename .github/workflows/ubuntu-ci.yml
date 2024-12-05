@@ -30,23 +30,23 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          sudo apt-get install -y \\
-            binfmt-support \\
-            qemu-user-static \\
-            gcc-10-aarch64-linux-gnu \\
-            kernel-package \\
-            fakeroot \\
-            simg2img \\
-            img2simg \\
-            mkbootimg \\
-            bison \\
-            flex \\
-            gcc-aarch64-linux-gnu \\
-            pkg-config \\
-            libncurses-dev \\
-            libssl-dev \\
-            unzip \\
-            git \\
+          sudo apt-get install -y \
+            binfmt-support \
+            qemu-user-static \
+            gcc-10-aarch64-linux-gnu \
+            kernel-package \
+            fakeroot \
+            simg2img \
+            img2simg \
+            mkbootimg \
+            bison \
+            flex \
+            gcc-aarch64-linux-gnu \
+            pkg-config \
+            libncurses-dev \
+            libssl-dev \
+            unzip \
+            git \
             debootstrap
 
       - name: Clone Linux Kernel Source
