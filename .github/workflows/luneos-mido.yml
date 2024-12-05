@@ -1,0 +1,103 @@
+name: Build LuneOS for Xiaomi Redmi Note 4 (Mido)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # 使用最新版的 Ubuntu 作为运行环境
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up QEMU for ARM64
+      uses: docker/setup-qemu-action@v1
+      with:
+        platforms: linux/arm64
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          bc \
+          bison \
+          flex \
+          g++-multilib \
+          gcc-multilib \
+          git \
+          libncurses5-dev \
+          libncursesw5-dev \
+          libssl-dev \
+          libwxgtk3.0-dev \
+          libxml2 \
+          libxml2-utils \
+          lzop \
+          python3 \
+          python3-pip \
+          python3-setuptools \
+          wget \
+          zlib1g-dev
+
+    - name: Install repo tool
+      run: |
+        pip3 install --user --upgrade pip
+        pip3 install --user --upgrade virtualenv
+        curl https://storage.googleapis.com/git-repo-downloads/repo > repo
+        chmod a+x repo
+        sudo mv repo /usr/local/bin/
+
+    - name: Initialize repo
+      run: |
+        mkdir -p ~/bin
+        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+        chmod a+x ~/bin/repo
+        mkdir -p .repo
+        repo init -u https://github.com/LuneOS/android.git -b eleven -g all,-device,-mips,-x86,-darwin,-not-for-device,-sdk
+
+    - name: Sync source code
+      run: |
+        repo sync -c -j$(nproc) --force-sync --no-clone-bundle --no-tags
+
+    - name: Prepare build environment
+      run: |
+        source build/envsetup.sh
+        lunch lunasword_mido-userdebug
+
+    - name: Build LuneOS
+      run: |
+        make bacon -j$(nproc)
+
+    - name: Archive the built binaries
+      id: archive
+      run: |
+        mkdir -p artifacts
+        find out/target/product/mido -name "*.zip" -exec cp {} artifacts/ \\;
+        echo "::set-output name=artifacts::$(pwd)/artifacts"
+
+    - name: Upload artifacts to GitHub Release
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ${{ steps.archive.outputs.artifacts }}/*.zip
+        asset_name: lunasword-mido-*.zip
+        asset_content_type: application/zip
+
+    - name: Create or Update GitHub Release
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: "LuneOS for Xiaomi Redmi Note 4 (Mido)"
+        draft: false
+        prerelease: false
