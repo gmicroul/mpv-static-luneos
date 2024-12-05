@@ -1,0 +1,174 @@
+name: Build and Upload Fedora Image for OnePlus 6T
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up QEMU for ARM64
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static binfmt-support
+
+      - name: Set up environment variables
+        run: |
+          echo "export CROSS_COMPILE=aarch64-linux-gnu-" > env.sh
+          echo "export ARCH=arm64" >> env.sh
+          echo "export CC=aarch64-linux-gnu-gcc" >> env.sh
+          chmod +x env.sh
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get install -y \\
+            binfmt-support \\
+            qemu-user-static \\
+            gcc-10-aarch64-linux-gnu \\
+            kernel-package \\
+            fakeroot \\
+            simg2img \\
+            img2simg \\
+            mkbootimg \\
+            bison \\
+            flex \\
+            gcc-aarch64-linux-gnu \\
+            pkg-config \\
+            libncurses-dev \\
+            libssl-dev \\
+            unzip \\
+            git \\
+            debootstrap
+
+      - name: Clone Linux Kernel Source
+        run: |
+          mkdir -p workspaces
+          cd workspaces
+          git clone https://github.com/msm8953-mainline/linux.git --depth 1
+
+      - name: Download .config file
+        run: |
+          wget https://gitee.com/meiziyang2023/ubuntu-ports-xiaomi-625-phones/raw/master/.config -O ~/workspaces/linux/.config
+
+      - name: Build the kernel
+        working-directory: ~/workspaces/linux
+        run: |
+          source ../env.sh
+          make clean
+          make -j$(nproc)
+          fakeroot make-kpkg --initrd --cross-compile aarch64-linux-gnu- --arch arm64 kernel_image kernel_headers -j$(nproc)
+
+      - name: Create rootfs.img
+        run: |
+          dd if=/dev/zero of=rootfs-focal.img bs=1G count=2
+          mkfs.ext4 rootfs-focal.img
+
+      - name: Mount rootfs.img
+        run: |
+          mkdir -p ~/chroot
+          sudo mount rootfs-focal.img ~/chroot
+
+      - name: Bootstrap the rootfs
+        run: |
+          sudo debootstrap --arch arm64 focal ~/chroot https://mirrors.aliyun.com/ubuntu-ports
+
+      - name: Chroot into rootfs
+        run: |
+          sudo mount --bind /proc ~/chroot/proc
+          sudo mount --bind /dev ~/chroot/dev
+          sudo mount --bind /dev/pts ~/chroot/dev/pts
+          sudo mount --bind /sys ~/chroot/sys
+          sudo chroot ~/chroot /bin/bash -c "apt update && apt upgrade"
+          sudo chroot ~/chroot /bin/bash -c "locale-gen en_US.UTF-8 && locale-gen zh_CN.UTF-8"
+          sudo chroot ~/chroot /bin/bash -c "rm /etc/localtime && ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime"
+          sudo chroot ~/chroot /bin/bash -c "echo 'xiaomi-mido' > /etc/hostname"
+          sudo chroot ~/chroot /bin/bash -c "apt purge netplan.io"
+          sudo chroot ~/chroot /bin/bash -c "useradd -m -s /bin/bash hol && usermod -aG sudo hol"
+          sudo chroot ~/chroot /bin/bash -c "passwd hol"
+          sudo chroot ~/chroot /bin/bash -c "apt install -y man man-db bash-completion vim tmux network-manager chrony openssh-server initramfs-tools --no-install-recommends"
+          sudo chroot ~/chroot /bin/bash -c "cp /boot/initrd* /tmp/"
+          sudo chroot ~/chroot /bin/bash -c "dpkg --get-selections | grep linux | xargs dpkg -P"
+          sudo chroot ~/chroot /bin/bash -c "rm -rf /lib/modules/*"
+          sudo chroot ~/chroot /bin/bash -c "dpkg -i /tmp/*.deb"
+          sudo chroot ~/chroot /bin/bash -c "ldconfig"
+
+      - name: Copy firmware
+        run: |
+          cp -r ./firmware/* ~/chroot/usr/lib/firmware/
+
+      - name: Make boot.img
+        run: |
+          mkdir -p ~/workspaces/tmp_mkboot
+          rm -rf ~/workspaces/tmp_mkboot/*
+          cp ~/workspaces/linux/arch/arm64/boot/dts/qcom/*mido*.dtb ~/workspaces/tmp_mkboot/
+          cp ~/workspaces/linux/arch/arm64/boot/Image.gz ~/workspaces/tmp_mkboot/
+          cp ~/chroot/boot/initrd* ~/workspaces/tmp_mkboot/
+          cp ~/workspaces/tmp_mkboot/initrd* ~/workspaces/tmp_mkboot/initrd.img
+          cp ~/workspaces/tmp_mkboot/msm*.dtb ~/workspaces/tmp_mkboot/dtb
+          cat ~/workspaces/tmp_mkboot/Image.gz ~/workspaces/tmp_mkboot/dtb > ~/workspaces/tmp_mkboot/kernel-dtb
+          mkbootimg --base 0x80000000 \\
+                    --kernel_offset 0x00008000 \\
+                    --ramdisk_offset 0x01000000 \\
+                    --tags_offset 0x00000100 \\
+                    --pagesize 2048 \\
+                    --second_offset 0x00f00000 \\
+                    --ramdisk ~/workspaces/tmp_mkboot/initrd.img \\
+                    --cmdline "console=tty0 root=UUID=20336aa9-c9de-431a-b679-dcf10065c121 rw loglevel=3 splash" \\
+                    --kernel ~/workspaces/tmp_mkboot/kernel-dtb -o ~/workspaces/tmp_mkboot/boot.img
+
+      - name: Enable resizefs service
+        run: |
+          echo '[Unit]' > /etc/systemd/system/resizefs.service
+          echo 'Description=Expand root filesystem to fill partition' >> /etc/systemd/system/resizefs.service
+          echo 'After=local-fs.target' >> /etc/systemd/system/resizefs.service
+          echo '[Service]' >> /etc/systemd/system/resizefs.service
+          echo 'Type=oneshot' >> /etc/systemd/system/resizefs.service
+          echo 'ExecStart=/usr/bin/bash -c '\\''exec /usr/sbin/resize2fs $(findmnt -nvo SOURCE /)'\\''' >> /etc/systemd/system/resizefs.service
+          echo 'ExecStartPost=/usr/bin/systemctl disable resizefs.service' >> /etc/systemd/system/resizefs.service
+          echo 'RemainAfterExit=true' >> /etc/systemd/system/resizefs.service
+          echo '[Install]' >> /etc/systemd/system/resizefs.service
+          echo 'WantedBy=default.target' >> /etc/systemd/system/resizefs.service
+          systemctl enable resizefs.service
+
+      - name: Enable serial-getty service
+        run: |
+          echo '[Unit]' > /etc/systemd/system/serial-getty@ttyGS0.service
+          echo 'Description=Serial Console Service on ttyGS0' >> /etc/systemd/system/serial-getty@ttyGS0.service
+          echo '[Service]' >> /etc/systemd/system/serial-getty@ttyGS0.service
+          echo 'ExecStart=-/usr/sbin/agetty -L 115200 ttyGS0 xterm+256color' >> /etc/systemd/system/serial-getty@ttyGS0.service
+          echo 'Type=idle' >> /etc/systemd/system/serial-getty@ttyGS0.service
+          echo 'Restart=always' >> /etc/systemd/system/serial-getty@ttyGS0.service
+          echo 'RestartSec=0' >> /etc/systemd/system/serial-getty@ttyGS0.service
+          echo '[Install]' >> /etc/systemd/system/serial-getty@ttyGS0.service
+          echo 'WantedBy=multi-user.target' >> /etc/systemd/system/serial-getty@ttyGS0.service
+          systemctl enable serial-getty@ttyGS0.service
+
+      - name: Clean up chroot environment
+        run: |
+          sudo chroot ~/chroot /bin/bash -c "apt clean && rm -f /tmp/* && history -c && exit"
+          sudo umount ~/chroot/proc
+          sudo umount ~/chroot/dev/pts
+          sudo umount ~/chroot/dev
+          sudo umount ~/chroot/sys
+          sudo umount ~/chroot
+
+      - name: Convert rootfs.img to .img
+        run: |
+          img2simg ~/workspaces/rootfs-focal.img ~/workspaces/tmp_mkboot/rootfs.img
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: OnePlus6T-Fedora-Image
+          path: |
+            ~/workspaces/tmp_mkboot/boot.img
+            ~/workspaces/tmp_mkboot/rootfs.img
