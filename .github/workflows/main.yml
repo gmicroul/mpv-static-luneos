@@ -55,14 +55,20 @@ jobs:
         tar xf linux-4.9.tar.xz
         sudo cp -r linux-4.9/include/linux /usr/src/linux-headers-4.9/
 
-    - name: Build MPV
+    - name: Clone and configure MPV
       run: |
         git clone https://github.com/mpv-player/mpv.git
         cd mpv
         ./bootstrap.py
-        ./waf configure --enable-static --disable-shared --enable-libmpv-shared --enable-egl-platform --enable-gpl --enable-version3 --enable-drm --enable-alsa --enable-caca --enable-jack --enable-libass --enable-libarchive --enable-libbluray --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libdvdnav --enable-libdvdread --enable-libfdk-aac --enable-libfontconfig --enable-libfreetype --enable-libjack --enable-libmp3lame --enable-libmodplug --enable-libopenal --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopencv --enable-libpulse --enable-librtmp --enable-libschroedinger --enable-libshine --enable-libspeex --enable-libssh --enable-libtheora --enable-libtwolame --enable-libv4l2 --enable-libvo-amrwbenc --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxvid --enable-libzimg --enable-libzvbi --enable-opencl --enable-opengl --enable-pulse --enable-sdl --enable-vaapi --enable-vdpau --enable-x11
+        ./waf configure --prefix=/usr/local --enable-static --disable-shared --enable-libmpv-shared --enable-egl-platform --enable-gpl --enable-version3 --enable-drm --enable-alsa --enable-caca --enable-jack --enable-libass --enable-libarchive --enable-libbluray --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libdvdnav --enable-libdvdread --enable-libfdk-aac --enable-libfontconfig --enable-libfreetype --enable-libjack --enable-libmp3lame --enable-libmodplug --enable-libopenal --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopencv --enable-libpulse --enable-librtmp --enable-libschroedinger --enable-libshine --enable-libspeex --enable-libssh --enable-libtheora --enable-libtwolame --enable-libv4l2 --enable-libvo-amrwbenc --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxvid --enable-libzimg --enable-libzvbi --enable-opencl --enable-opengl --enable-pulse --enable-sdl --enable-vaapi --enable-vdpau --enable-x11
+
+    - name: Build MPV
+      run: |
         ./waf build
-        ./waf install
+
+    - name: Install MPV
+      run: |
+        sudo ./waf install
 
     - name: Archive the built binaries
       id: archive
