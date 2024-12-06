@@ -36,8 +36,8 @@ jobs:
             gcc-10-aarch64-linux-gnu \
             #kernel-package \
             fakeroot \
-            simg2img \
-            img2simg \
+            #simg2img \
+            #img2simg \
             mkbootimg \
             bison \
             flex \
