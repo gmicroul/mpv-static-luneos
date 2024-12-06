@@ -1,4 +1,4 @@
-name: Build and Upload Fedora Image for OnePlus 6T
+name: Build and Upload Ubuntu Image for OnePlus 6T
 
 on:
   push:
@@ -34,7 +34,7 @@ jobs:
             binfmt-support \
             qemu-user-static \
             gcc-10-aarch64-linux-gnu \
-            kernel-package \
+            #kernel-package \
             fakeroot \
             simg2img \
             img2simg \
