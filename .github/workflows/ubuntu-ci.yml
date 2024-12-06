@@ -38,7 +38,7 @@ jobs:
             fakeroot \
             #simg2img \
             #img2simg \
-            mkbootimg \
+            #mkbootimg \
             bison \
             flex \
             gcc-aarch64-linux-gnu \
